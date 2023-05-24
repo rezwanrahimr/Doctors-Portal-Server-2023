@@ -35,8 +35,13 @@ async function run() {
       .db("doctors-portal")
       .collection("bookings");
 
-    //   Get Appointment Options
-    app.get("/appointmentOptions", async (req, res) => {
+    // User Collection
+    const usersCollections = client
+      .db("doctors-portal")
+      .collection("users-collections");
+
+    //   Get Appointment Options Original
+    /*  app.get("/appointmentOptions", async (req, res) => {
       const date = req.query.date;
       const quary = {};
       const cursor = appointmentOptionsCollections.find(quary);
@@ -58,11 +63,61 @@ async function run() {
       });
       res.send(result);
     });
+ */
+
+    //   Practice
+    app.get("/appointmentOptions", async (req, res) => {
+      const date = req.query.date;
+      const quary = {};
+      const cursor = appointmentOptionsCollections.find(quary);
+      const result = await cursor.toArray();
+      const bookingQuery = { appointmentDate: date };
+      const alreadyBooking = await bookingCollections
+        .find(bookingQuery)
+        .toArray();
+
+      result.forEach((element) => {
+        const optionBooked = alreadyBooking.filter(
+          (option) => option.treatmentName === element.name
+        );
+        const bookSlot = optionBooked.map((element) => element.slots);
+        const remaining = element.slots.filter(
+          (slot) => !bookSlot.includes(slot)
+        );
+        element.slots = remaining;
+      });
+
+      res.send(result);
+    });
 
     // Post Booking
     app.post("/bookings", async (req, res) => {
       const booking = req.body;
+      const bookingQuarry = {
+        treatmentName: booking?.treatmentName,
+        email: booking?.email,
+      };
+      const check = await bookingCollections.find(bookingQuarry).toArray();
+      if (check.length > 0) {
+        return res.send({ acknowledge: false });
+      }
       const result = await bookingCollections.insertOne(booking);
+      res.send(result);
+    });
+
+    // Get Appointment
+    app.get("/bookings", async (req, res) => {
+      const { email } = req.query;
+
+      const quarry = { email: email };
+      const cursor = await bookingCollections.find(quarry).toArray();
+      res.send(cursor);
+    });
+
+    // Post User
+    app.post("/user", async (req, res) => {
+      const user = req.body;
+      const result = await usersCollections.insertOne(user);
       res.send(result);
     });
   } finally {
