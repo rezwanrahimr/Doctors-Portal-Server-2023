@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 var jwt = require("jsonwebtoken");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.port || 5000;
 
 // MiddleWare
@@ -163,6 +163,45 @@ async function run() {
         return res.send(result);
       }
       res.send({ acknowledged: true });
+    });
+
+    // Get all User
+    app.get("/users", async (req, res) => {
+      const quary = {};
+      const result = await usersCollections.find(quary).toArray();
+      res.send(result);
+    });
+
+    // Make Admin
+    app.put("/admin/:id", verifyJWT, async (req, res) => {
+      const email = res.decoded.email;
+      const quary = { email: email };
+      const user = await usersCollections.findOne(quary);
+      if (user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden" });
+      }
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollections.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
+
+    // Get Admin User
+    app.get("/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const quary = { email: email };
+      const user = await usersCollections.findOne(quary);
+      res.send({ isAdmin: user.role === "admin" });
     });
   } finally {
     // Ensures that the client will close when you finish/error
