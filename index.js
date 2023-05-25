@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
+var jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const port = process.env.port || 5000;
 
@@ -21,6 +22,25 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+// Verify JWT
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(403).send({ message: "UnAuthorize" });
+  }
+
+  const token = authorization.split(" ")[1];
+
+  jwt.verify(token, process.env.JWT_TOKEN, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: "UnAuthorize" });
+    }
+
+    res.decoded = decoded;
+    next();
+  });
+};
 
 async function run() {
   try {
@@ -106,19 +126,43 @@ async function run() {
     });
 
     // Get Appointment
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", verifyJWT, async (req, res) => {
+      const decoded = res.decoded;
       const { email } = req.query;
-
+      if (decoded.email !== email) {
+        return res.status(403).send({ message: "UnAuthorize Access" });
+      }
       const quarry = { email: email };
       const cursor = await bookingCollections.find(quarry).toArray();
       res.send(cursor);
     });
 
+    // JWT
+    app.get("/jwt", async (req, res) => {
+      const email = req.query.email;
+      const quarry = { email: email };
+      const cursor = await usersCollections.findOne(quarry);
+      if (cursor) {
+        const token = jwt.sign({ email }, process.env.JWT_TOKEN, {
+          expiresIn: "1h",
+        });
+        return res.send({ accessToken: token });
+      }
+
+      res.status(403).send({ accessToken: "" });
+    });
     // Post User
     app.post("/user", async (req, res) => {
       const user = req.body;
-      const result = await usersCollections.insertOne(user);
-      res.send(result);
+      const email = user.email;
+      console.log(email);
+      const userQuary = { email: email };
+      const cursor = await usersCollections.findOne(userQuary);
+      if (cursor == null) {
+        const result = await usersCollections.insertOne(user);
+        return res.send(result);
+      }
+      res.send({ acknowledged: true });
     });
   } finally {
     // Ensures that the client will close when you finish/error
