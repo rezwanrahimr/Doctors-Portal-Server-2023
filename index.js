@@ -13,7 +13,7 @@ app.use(express.json());
 // MongoDB
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.15gyc.mongodb.net/?retryWrites=true&w=majority`;
-console.log(uri);
+
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -59,6 +59,9 @@ async function run() {
     const usersCollections = client
       .db("doctors-portal")
       .collection("users-collections");
+
+    // Doctors Collection
+    const doctorsCollection = client.db("doctors-portal").collection("doctors");
 
     //   Get Appointment Options Original
     /*  app.get("/appointmentOptions", async (req, res) => {
@@ -107,6 +110,15 @@ async function run() {
         element.slots = remaining;
       });
 
+      res.send(result);
+    });
+
+    app.get("/treatment", async (req, res) => {
+      const quary = {};
+      const result = await appointmentOptionsCollections
+        .find(quary)
+        .project({ name: 1 })
+        .toArray();
       res.send(result);
     });
 
@@ -166,7 +178,13 @@ async function run() {
     });
 
     // Get all User
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyJWT, async (req, res) => {
+      const email = res.decoded.email;
+      const adminQuary = { email };
+      const cursor = await usersCollections.findOne(adminQuary);
+      if (cursor.role !== "admin") {
+        return res.status(403).send("forbidden");
+      }
       const quary = {};
       const result = await usersCollections.find(quary).toArray();
       res.send(result);
@@ -202,6 +220,20 @@ async function run() {
       const quary = { email: email };
       const user = await usersCollections.findOne(quary);
       res.send({ isAdmin: user.role === "admin" });
+    });
+
+    // Post Doctor
+    app.post("/doctors", async (req, res) => {
+      const data = req.body;
+      const result = await doctorsCollection.insertOne(data);
+      res.send(result);
+    });
+
+    // Get Doctors
+    app.get("/doctors", async (req, res) => {
+      const quary = {};
+      const result = await doctorsCollection.find(quary).toArray();
+      res.send(result);
     });
   } finally {
     // Ensures that the client will close when you finish/error
