@@ -63,32 +63,18 @@ async function run() {
     // Doctors Collection
     const doctorsCollection = client.db("doctors-portal").collection("doctors");
 
-    //   Get Appointment Options Original
-    /*  app.get("/appointmentOptions", async (req, res) => {
-      const date = req.query.date;
-      const quary = {};
-      const cursor = appointmentOptionsCollections.find(quary);
-      const result = await cursor.toArray();
-      const bookingQuery = { appointmentDate: date };
-      const alreadyBooking = await bookingCollections
-        .find(bookingQuery)
-        .toArray();
-      result.forEach((element) => {
-        const optionBooked = alreadyBooking.filter(
-          (option) => option.treatmentName === element.name
-        );
-        // ...........
-        const bookSlot = optionBooked.map((element) => element.slots);
-        const remaining = element.slots.filter(
-          (slot) => !bookSlot.includes(slot)
-        );
-        element.slots = remaining;
-      });
-      res.send(result);
-    });
- */
+    // Verify Admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = res.decoded.email;
+      const adminQuary = { email };
+      const cursor = await usersCollections.findOne(adminQuary);
+      if (cursor.role !== "admin") {
+        return res.status(403).send("forbidden");
+      }
+      next();
+    };
 
-    //   Practice
+    //   Get all appointment slots
     app.get("/appointmentOptions", async (req, res) => {
       const date = req.query.date;
       const quary = {};
@@ -149,15 +135,29 @@ async function run() {
       res.send(cursor);
     });
 
+    // get specific Booking
+    app.get("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const quarry = { _id: new ObjectId(id) };
+      const result = await bookingCollections.findOne(quarry);
+      res.send(result);
+    });
+
+    // Delete Booking
+    app.delete("/bookings/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const quary = { _id: new ObjectId(id) };
+      const result = await bookingCollections.deleteOne(quary);
+      res.send(result);
+    });
+
     // JWT
     app.get("/jwt", async (req, res) => {
       const email = req.query.email;
       const quarry = { email: email };
       const cursor = await usersCollections.findOne(quarry);
       if (cursor) {
-        const token = jwt.sign({ email }, process.env.JWT_TOKEN, {
-          expiresIn: "1h",
-        });
+        const token = jwt.sign({ email }, process.env.JWT_TOKEN);
         return res.send({ accessToken: token });
       }
 
@@ -167,7 +167,6 @@ async function run() {
     app.post("/user", async (req, res) => {
       const user = req.body;
       const email = user.email;
-      console.log(email);
       const userQuary = { email: email };
       const cursor = await usersCollections.findOne(userQuary);
       if (cursor == null) {
@@ -239,10 +238,9 @@ async function run() {
     // Doctor Delete
     app.delete("/doctors/:id", verifyJWT, async (req, res) => {
       const email = res.decoded.email;
-      console.log(email);
       const userQuary = { email: email };
       const cursor = await usersCollections.findOne(userQuary);
-      console.log(cursor);
+
       if (cursor.role !== "admin") {
         return res.status(403).send({ message: "UnAuthorize Access" });
       }
