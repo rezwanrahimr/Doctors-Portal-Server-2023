@@ -235,6 +235,22 @@ async function run() {
       const result = await doctorsCollection.find(quary).toArray();
       res.send(result);
     });
+
+    // Doctor Delete
+    app.delete("/doctors/:id", verifyJWT, async (req, res) => {
+      const email = res.decoded.email;
+      console.log(email);
+      const userQuary = { email: email };
+      const cursor = await usersCollections.findOne(userQuary);
+      console.log(cursor);
+      if (cursor.role !== "admin") {
+        return res.status(403).send({ message: "UnAuthorize Access" });
+      }
+      const id = req.params.id;
+      const quary = { _id: new ObjectId(id) };
+      const result = await doctorsCollection.deleteOne(quary);
+      res.send(result);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
