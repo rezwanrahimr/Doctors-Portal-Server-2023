@@ -1,11 +1,13 @@
 const express = require("express");
-const app = express();
 const cors = require("cors");
 require("dotenv").config();
 var jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
 const port = process.env.port || 5000;
 
+const app = express();
 // MiddleWare
 app.use(cors());
 app.use(express.json());
@@ -73,6 +75,22 @@ async function run() {
       }
       next();
     };
+
+    // Stripe Payment
+    app.post("/create-payment-intent", async (req, res) => {
+      const booking = req.body;
+      const price = booking.price;
+      const amount = price * 100;
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        currency: "usd",
+        amount: amount,
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
     //   Get all appointment slots
     app.get("/appointmentOptions", async (req, res) => {
