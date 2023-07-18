@@ -47,7 +47,7 @@ const verifyJWT = (req, res, next) => {
 async function run() {
   try {
     // Connect the client to the server
-    await client.connect();
+    client.connect();
     // Appointment Options Collections
     const appointmentOptionsCollections = client
       .db("doctors-portal")
@@ -64,6 +64,8 @@ async function run() {
 
     // Doctors Collection
     const doctorsCollection = client.db("doctors-portal").collection("doctors");
+    // Payment Collection
+    const paymentCollection = client.db("doctors-portal").collection("payment");
 
     // Verify Admin
     const verifyAdmin = async (req, res, next) => {
@@ -138,6 +140,7 @@ async function run() {
         return res.send({ acknowledge: false });
       }
       const result = await bookingCollections.insertOne(booking);
+
       res.send(result);
     });
 
@@ -169,6 +172,26 @@ async function run() {
       res.send(result);
     });
 
+    // Payment
+    app.post("/payment", async (req, res) => {
+      const payment = req.body;
+      const result = await paymentCollection.insertOne(payment);
+      const id = payment.bookingId;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: {
+          paid: true,
+          transitionId: payment.transitionId,
+        },
+      };
+      const updateBooking = await bookingCollections.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
+      res.send(result);
+    });
     // JWT
     app.get("/jwt", async (req, res) => {
       const email = req.query.email;
@@ -265,6 +288,13 @@ async function run() {
       const id = req.params.id;
       const quary = { _id: new ObjectId(id) };
       const result = await doctorsCollection.deleteOne(quary);
+      res.send(result);
+    });
+
+    app.delete("/user/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollections.deleteOne(query);
       res.send(result);
     });
   } finally {
